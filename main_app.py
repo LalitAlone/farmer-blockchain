@@ -142,6 +142,7 @@ st.dataframe(
         [
             "Milk Collection Date",
             "Amount Actually Paid",
+            "Payment Duration",
             "Payment Status",
             "Farmer Credit Pay Date"
         ]
@@ -160,6 +161,17 @@ if single_farmer:
     c2.metric("Account No", farmer["Account No"])
     c3.metric("Branch Code", farmer["Branch Code"])
     c4.metric("Reference No", farmer["Reference No"])
+
+# ==========================================================
+# 7️⃣ FARMER 10 DAYS SUMMARY
+# ==========================================================
+st.subheader("📊 Farmer 10 Days Overall Summary")
+
+c1, c2, c3 = st.columns(3)
+c1.metric("Total Milk (L)", round(df_10["Milk Quantity Litres"].sum(), 2))
+c2.metric("Total Amount (₹)", round(df_10["Amount Actually Paid"].sum(), 2))
+c3.metric("Total Days", df_10["Milk Collection Date"].nunique())
+
 
 # ==========================================================
 # 5️⃣ UNION VERIFICATION
@@ -182,15 +194,15 @@ if single_farmer:
     c1.metric("Society Code", farmer["Society Code"])
     c2.metric("Batch ID", farmer["Batch ID"])
 
-# ==========================================================
-# 7️⃣ FARMER 10 DAYS SUMMARY
-# ==========================================================
-st.subheader("📊 Farmer 10 Days Overall Summary")
+# # ==========================================================
+# # 7️⃣ FARMER 10 DAYS SUMMARY
+# # ==========================================================
+# st.subheader("📊 Farmer 10 Days Overall Summary")
 
-c1, c2, c3 = st.columns(3)
-c1.metric("Total Milk (L)", round(df_10["Milk Quantity Litres"].sum(), 2))
-c2.metric("Total Amount (₹)", round(df_10["Amount Actually Paid"].sum(), 2))
-c3.metric("Total Days", df_10["Milk Collection Date"].nunique())
+# c1, c2, c3 = st.columns(3)
+# c1.metric("Total Milk (L)", round(df_10["Milk Quantity Litres"].sum(), 2))
+# c2.metric("Total Amount (₹)", round(df_10["Amount Actually Paid"].sum(), 2))
+# c3.metric("Total Days", df_10["Milk Collection Date"].nunique())
 
 # ==========================================================
 # 8️⃣ VISUALIZATIONS (1×3, INTERACTIVE)
@@ -301,10 +313,13 @@ if single_farmer:
 # 🔟 QR CODE (MOBILE ACCESS + DOWNLOAD)
 # ==========================================================
 if single_farmer:
-    def build_qr_url(batch_id, farmer_code):
-        BASE_URL = "https://farmer-blockchain.streamlit.app"  # 👈 your live app URL
-        return f"{BASE_URL}/?batch={batch_id}&farmer={farmer_code}"
+    # def build_qr_url(batch_id, farmer_code):
+    #     BASE_URL = "https://farmer-blockchain.streamlit.app"  # 👈 your live app URL
+    #     return f"{BASE_URL}/?batch={batch_id}&farmer={farmer_code}"\
 
+    def build_qr_url(batch_id, farmer_code):
+        BASE_URL = "https://farmer-blockchain-9z3pj9f9pnmyuzimmzsusy.streamlit.app"
+        return f"{BASE_URL}/?batch={batch_id}&farmer={farmer_code}"
 
     qr_url = build_qr_url(
         farmer["Batch ID"],
