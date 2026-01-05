@@ -21,42 +21,24 @@ st.title("🔗 Farmer Milk Procurement Dashboard")
 def load_data():
     df = pd.read_excel("farmer_milk_data.xlsx")
     df.columns = df.columns.str.strip().str.replace("_", " ", regex=False)
-    df["Milk Collection Date"] = pd.to_datetime(
-        df["Milk Collection Date"], errors="coerce"
-    )
+    df["Milk Collection Date"] = pd.to_datetime(df["Milk Collection Date"], errors="coerce")
     return df
 
 df_base = load_data()
 
 # ==========================================================
-# READ BATCH ID FROM URL
+# GET BATCH ID FROM QUERY PARAM
 # ==========================================================
-batch_id = st.query_params.get("batch")
+# Example link: ?batch=10092025F9013
+query_params = st.experimental_get_query_params()
+batch_id = query_params.get("batch", [None])[0]
 
-# ==========================================================
-# STAGE 1 : ENTRY PAGE (NO ERROR ON LOAD)
-# ==========================================================
-if batch_id is None:
-    st.subheader("🔍 Enter Batch ID")
-    st.caption("Please enter your milk batch ID to view details")
-
-    batch_input = st.text_input(
-        "Batch ID",
-        placeholder="e.g. 10092025F9015"
-    )
-
-    if st.button("View Batch"):
-        if batch_input.strip():
-            st.query_params["batch"] = batch_input.strip()
-            st.rerun()
-        else:
-            st.warning("Please enter a valid Batch ID")
-
-    # Stop here – do not execute dashboard
+if not batch_id:
+    st.error("No Batch ID provided in URL. Example: ?batch=10092025F9013")
     st.stop()
 
 # ==========================================================
-# STAGE 2 : LOAD BATCH DATA
+# FILTER DATA BY BATCH ONLY
 # ==========================================================
 df_ctx = df_base[df_base["Batch ID"].astype(str) == batch_id]
 
@@ -64,23 +46,12 @@ if df_ctx.empty:
     st.error(f"No data found for Batch ID: {batch_id}")
     st.stop()
 
-farmer = df_ctx.iloc[0]
-
-
-
+farmer = df_ctx.iloc[0]  # Assume one farmer per batch
 
 # ==========================================================
-# FARMER Batch Number
-# ==========================================================
-(c1,) = st.columns(1)
-c1.metric("Batch ID", batch_id)
-
-
-# ==========================================================
-# FARMER DETAILS
+# DISPLAY FARMER DETAILS
 # ==========================================================
 st.subheader("👨‍🌾 Farmer Details")
-
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Farmer Name", farmer["Farmer Name"])
 c2.metric("Village", farmer["Farmer village"])
@@ -92,48 +63,40 @@ c4.metric("Batch ID", batch_id)
 # ==========================================================
 end_date = df_ctx["Milk Collection Date"].max()
 start_date = end_date - timedelta(days=10)
-
-df_10 = df_ctx[
-    (df_ctx["Milk Collection Date"] >= start_date) &
-    (df_ctx["Milk Collection Date"] <= end_date)
-]
+df_10 = df_ctx[(df_ctx["Milk Collection Date"] >= start_date) &
+               (df_ctx["Milk Collection Date"] <= end_date)]
 
 # ==========================================================
 # SUMMARY
 # ==========================================================
 st.subheader("📊 Batch Summary (Last 10 Days)")
-
 c1, c2, c3 = st.columns(3)
-c1.metric("Total Milk (Litres)", round(df_10["Milk Quantity Litres"].sum(), 2))
+c1.metric("Total Milk (L)", round(df_10["Milk Quantity Litres"].sum(), 2))
 c2.metric("Total Amount (₹)", round(df_10["Amount Actually Paid"].sum(), 2))
-c3.metric("Collection Days", df_10["Milk Collection Date"].nunique())
+c3.metric("Total Days", df_10["Milk Collection Date"].nunique())
 
 # ==========================================================
 # PAYMENT DETAILS
 # ==========================================================
-st.subheader("💰 Payment Details")
-
+st.subheader("💰 Payment Details (Last 10 Days)")
 st.dataframe(
-    df_10[
-        [
-            "Milk Collection Date",
-            "Milk Quantity Litres",
-            "Amount Actually Paid",
-            "Payment Status",
-            "Farmer Credit Pay Date"
-        ]
-    ],
+    df_10[[
+        "Milk Collection Date",
+        "Milk Quantity Litres",
+        "Amount Actually Paid",
+        "Payment Duration",
+        "Payment Status",
+        "Farmer Credit Pay Date"
+    ]],
     use_container_width=True
 )
 
 # ==========================================================
-# BLOCKCHAIN BACKTRACK FLOW
+# BLOCKCHAIN BACKTRACK
 # ==========================================================
 st.subheader("⛓ Blockchain Backtrack Flow")
-
 with st.expander(f"🧱 Batch Block → {batch_id}", expanded=False):
     prev_hash = "0"
-
     for _, r in df_10.sort_values("Milk Collection Date").iterrows():
         block = {
             "Date": str(r["Milk Collection Date"].date()),
@@ -143,17 +106,13 @@ with st.expander(f"🧱 Batch Block → {batch_id}", expanded=False):
             "Amount Paid": r["Amount Actually Paid"],
             "Previous Hash": prev_hash
         }
-
-        current_hash = hashlib.sha256(
-            json.dumps(block, sort_keys=True).encode()
-        ).hexdigest()
-
+        current_hash = hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
         block["Current Hash"] = current_hash
         st.json(block)
         prev_hash = current_hash
 
 # ==========================================================
-# QR CODE (DIRECT BATCH ACCESS)
+# QR CODE (LINK TO THIS BATCH)
 # ==========================================================
 def build_qr_url(batch_id):
     BASE_URL = "https://farmer-blockchain-9z3pj9f9pnmyuzimmzsusy.streamlit.app"
@@ -161,25 +120,22 @@ def build_qr_url(batch_id):
 
 qr_url = build_qr_url(batch_id)
 qr = qrcode.make(qr_url)
-
 buf = BytesIO()
 qr.save(buf, format="PNG")
 qr_bytes = buf.getvalue()
 
-st.subheader("📱 QR Code Access")
-
+st.subheader("📱 Blockchain QR Access")
 c1, c2 = st.columns([1, 2])
-
 with c1:
     st.image(qr_bytes, width=180)
-
 with c2:
-    st.markdown(f"""
-    **Scan this QR to view batch details**  
-    **Batch ID:** `{batch_id}`  
-    - Mobile friendly  
-    - Farmer access  
-    """)
+    st.markdown(
+        f"""
+        **Scan this QR code to view Batch {batch_id}:**  
+        - Mobile-friendly  
+        - Direct access to batch data
+        """
+    )
     st.download_button(
         "⬇️ Download QR Code",
         qr_bytes,
