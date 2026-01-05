@@ -5,7 +5,7 @@ from io import BytesIO
 from datetime import timedelta
 
 # ==========================================================
-# PAGE CONFIG
+# STREAMLIT CONFIG
 # ==========================================================
 st.set_page_config(
     page_title="Farmer Milk Procurement Dashboard",
@@ -21,22 +21,29 @@ st.title("🔗 Farmer Milk Procurement Dashboard")
 def load_data():
     df = pd.read_excel("farmer_milk_data.xlsx")
     df.columns = df.columns.str.strip().str.replace("_", " ", regex=False)
-    df["Milk Collection Date"] = pd.to_datetime(df["Milk Collection Date"], errors="coerce")
+    df["Milk Collection Date"] = pd.to_datetime(
+        df["Milk Collection Date"], errors="coerce"
+    )
     return df
 
 df_base = load_data()
 
 # ==========================================================
-# READ BATCH ID FROM URL (NEW API)
+# READ BATCH ID FROM URL
 # ==========================================================
 batch_id = st.query_params.get("batch")
 
 # ==========================================================
-# STAGE 1 – ONLY BATCH INPUT PAGE
+# STAGE 1 : ENTRY PAGE (NO ERROR ON LOAD)
 # ==========================================================
 if batch_id is None:
     st.subheader("🔍 Enter Batch ID")
-    batch_input = st.text_input("Batch ID", placeholder="e.g. 10092025F9015")
+    st.caption("Please enter your milk batch ID to view details")
+
+    batch_input = st.text_input(
+        "Batch ID",
+        placeholder="e.g. 10092025F9015"
+    )
 
     if st.button("View Batch"):
         if batch_input.strip():
@@ -45,13 +52,12 @@ if batch_id is None:
         else:
             st.warning("Please enter a valid Batch ID")
 
+    # Stop here – do not execute dashboard
     st.stop()
 
 # ==========================================================
-# STAGE 2 – LOAD BATCH DATA
+# STAGE 2 : LOAD BATCH DATA
 # ==========================================================
-batch_id = batch_id  # already string
-
 df_ctx = df_base[df_base["Batch ID"].astype(str) == batch_id]
 
 if df_ctx.empty:
@@ -60,10 +66,21 @@ if df_ctx.empty:
 
 farmer = df_ctx.iloc[0]
 
+
+
+
+# ==========================================================
+# FARMER Batch Number
+# ==========================================================
+(c1,) = st.columns(1)
+c1.metric("Batch ID", batch_id)
+
+
 # ==========================================================
 # FARMER DETAILS
 # ==========================================================
 st.subheader("👨‍🌾 Farmer Details")
+
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Farmer Name", farmer["Farmer Name"])
 c2.metric("Village", farmer["Farmer village"])
@@ -85,22 +102,23 @@ df_10 = df_ctx[
 # SUMMARY
 # ==========================================================
 st.subheader("📊 Batch Summary (Last 10 Days)")
+
 c1, c2, c3 = st.columns(3)
-c1.metric("Total Milk (L)", round(df_10["Milk Quantity Litres"].sum(), 2))
+c1.metric("Total Milk (Litres)", round(df_10["Milk Quantity Litres"].sum(), 2))
 c2.metric("Total Amount (₹)", round(df_10["Amount Actually Paid"].sum(), 2))
 c3.metric("Collection Days", df_10["Milk Collection Date"].nunique())
 
 # ==========================================================
-# PAYMENT TABLE
+# PAYMENT DETAILS
 # ==========================================================
 st.subheader("💰 Payment Details")
+
 st.dataframe(
     df_10[
         [
             "Milk Collection Date",
             "Milk Quantity Litres",
             "Amount Actually Paid",
-            "Payment Duration",
             "Payment Status",
             "Farmer Credit Pay Date"
         ]
@@ -109,12 +127,13 @@ st.dataframe(
 )
 
 # ==========================================================
-# BLOCKCHAIN BACKTRACK
+# BLOCKCHAIN BACKTRACK FLOW
 # ==========================================================
 st.subheader("⛓ Blockchain Backtrack Flow")
 
 with st.expander(f"🧱 Batch Block → {batch_id}", expanded=False):
     prev_hash = "0"
+
     for _, r in df_10.sort_values("Milk Collection Date").iterrows():
         block = {
             "Date": str(r["Milk Collection Date"].date()),
@@ -124,15 +143,17 @@ with st.expander(f"🧱 Batch Block → {batch_id}", expanded=False):
             "Amount Paid": r["Amount Actually Paid"],
             "Previous Hash": prev_hash
         }
+
         current_hash = hashlib.sha256(
             json.dumps(block, sort_keys=True).encode()
         ).hexdigest()
+
         block["Current Hash"] = current_hash
         st.json(block)
         prev_hash = current_hash
 
 # ==========================================================
-# QR CODE
+# QR CODE (DIRECT BATCH ACCESS)
 # ==========================================================
 def build_qr_url(batch_id):
     BASE_URL = "https://farmer-blockchain-9z3pj9f9pnmyuzimmzsusy.streamlit.app"
@@ -145,7 +166,8 @@ buf = BytesIO()
 qr.save(buf, format="PNG")
 qr_bytes = buf.getvalue()
 
-st.subheader("📱 QR Access")
+st.subheader("📱 QR Code Access")
+
 c1, c2 = st.columns([1, 2])
 
 with c1:
@@ -153,12 +175,13 @@ with c1:
 
 with c2:
     st.markdown(f"""
-    **Scan to view batch:** `{batch_id}`  
+    **Scan this QR to view batch details**  
+    **Batch ID:** `{batch_id}`  
     - Mobile friendly  
-    - Direct farmer access  
+    - Farmer access  
     """)
     st.download_button(
-        "⬇️ Download QR",
+        "⬇️ Download QR Code",
         qr_bytes,
         file_name=f"Batch_{batch_id}.png",
         mime="image/png"
